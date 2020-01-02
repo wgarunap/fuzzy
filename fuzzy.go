@@ -664,7 +664,9 @@ func SampleEnglish() []string {
 // Takes the known dictionary listing and creates a suffix array
 // model for these terms. If a model already existed, it is discarded
 func (model *Model) updateSuffixArr() {
-	defer model.updateSuffixArrLatency.Observe(float64(time.Since(time.Now()).Nanoseconds()/1e3), map[string]string{"name": model.name})
+	defer func(start time.Time) {
+		model.updateSuffixArrLatency.Observe(float64(time.Since(start).Nanoseconds()/1e3), map[string]string{"name": model.name})
+	}(time.Now())
 
 	if !model.UseAutocomplete {
 		return
