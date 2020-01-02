@@ -111,7 +111,7 @@ func NewModel() *Model {
 
 func (model *Model) Init() *Model {
 	model.Data = make(map[string]*Counts)
-	model.Suggest = make(map[string][]string)
+	model.Suggest = make(map[string][]*string)
 	model.Depth = SpellDepthDefault
 	model.Threshold = SpellThresholdDefault // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
 	model.UseAutocomplete = true            // Default is to include Autocomplete
@@ -310,6 +310,33 @@ func (model *Model) TrainWord(term string) {
 	model.Unlock()
 }
 
+type SingleWord struct {
+	Word  string
+	Count int
+}
+
+func (model *Model) TrainUnique(terms []SingleWord) {
+	for _, term := range terms {
+		model.TrainUniqueWord(term.Word, term.Count)
+	}
+	model.updateSuffixArr()
+}
+
+func (model *Model) TrainUniqueWord(term string, count int) {
+
+	model.Data[term] = &Counts{count, 0}
+
+	// Set the max
+	if model.Data[term].Corpus > model.Maxcount {
+		model.Maxcount = model.Data[term].Corpus
+		model.SuffDivergence++
+	}
+	// If threshold is triggered, store delete suggestion keys
+	if model.Data[term].Corpus == model.Threshold {
+		model.createSuggestKeys(term)
+	}
+}
+
 // Train using a search query term. This builds a second popularity
 // index of terms used to search, as opposed to generally occurring
 // in corpus text
@@ -331,33 +358,38 @@ func (model *Model) TrainQuery(term string) {
 // For a given term, create the partially deleted lookup keys
 func (model *Model) createSuggestKeys(term string) {
 	edits := model.EditsMulti(term, model.Depth)
-	for _, edit := range edits {
+	for edit := range edits {
 		skip := false
 		for _, hit := range model.Suggest[edit] {
-			if hit == term {
+			if *hit == term {
 				// Already know about this one
 				skip = true
-				continue
+				break
 			}
 		}
 		if !skip && len(edit) > 1 {
-			model.Suggest[edit] = append(model.Suggest[edit], term)
+			model.Suggest[edit] = append(model.Suggest[edit], &term)
 		}
 	}
 }
 
 // Edits at any depth for a given term. The depth of the model is used
-func (model *Model) EditsMulti(term string, depth int) []string {
+func (model *Model) EditsMulti(term string, depth int) (out map[string]struct{}) {
+
 	edits := Edits1(term)
 	for {
 		depth--
 		if depth <= 0 {
 			break
 		}
-		for _, edit := range edits {
+		for edit := range edits {
+			if edit == term {
+				continue
+			}
+
 			edits2 := Edits1(edit)
-			for _, edit2 := range edits2 {
-				edits = append(edits, edit2)
+			for edit2 := range edits2 {
+				edits[edit2] = struct{}{}
 			}
 		}
 	}
@@ -365,31 +397,26 @@ func (model *Model) EditsMulti(term string, depth int) []string {
 }
 
 // Edits1 creates a set of terms that are 1 char delete from the input term
-func Edits1(word string) []string {
+func Edits1(word string) map[string]struct{} {
+	total_set := map[string]struct{}{}
 
-	splits := []Pair{}
-	for i := 0; i <= len(word); i++ {
-		splits = append(splits, Pair{word[:i], word[i:]})
-	}
+	total_set[word] = struct{}{}
+	//total_set := []string{word}
 
-	total_set := []string{}
-	for _, elem := range splits {
-
-		//deletion
-		if len(elem.str2) > 0 {
-			total_set = append(total_set, elem.str1+elem.str2[1:])
-		} else {
-			total_set = append(total_set, elem.str1)
-		}
-
+	var s1, s2 string
+	for i := range word {
+		s1, s2 = word[:i], word[i+1:]
+		total_set[s1+s2] = struct{}{}
 	}
 
 	// Special case ending in "ies" or "ys"
 	if strings.HasSuffix(word, "ies") {
-		total_set = append(total_set, word[:len(word)-3]+"ys")
+		//total_set = append(total_set, word[:len(word)-3]+"ys")
+		total_set[word[:len(word)-3]+"ys"] = struct{}{}
 	}
 	if strings.HasSuffix(word, "ys") {
-		total_set = append(total_set, word[:len(word)-2]+"ies")
+		//total_set = append(total_set, word[:len(word)-2]+"ies")
+		total_set[word[:len(word)-2]+"ies"] = struct{}{}
 	}
 
 	return total_set
@@ -490,7 +517,8 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 
 	// 1 - See if the input matches a "suggest" key
 	if sugg, ok := model.Suggest[input]; ok {
-		for _, pot := range sugg {
+		for _, pot2 := range sugg {
+			pot := *pot2
 			if _, ok := suggestions[pot]; !ok {
 				suggestions[pot] = &Potential{Term: pot, Score: model.corpusCount(pot), Leven: Levenshtein(&input, &pot), Method: MethodSuggestMapsToInput}
 			}
@@ -504,7 +532,7 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	// 2 - See if edit1 matches input
 	max := 0
 	edits := model.EditsMulti(input, model.Depth)
-	for _, edit := range edits {
+	for edit := range edits {
 		score := model.corpusCount(edit)
 		if score > 0 && len(edit) > 2 {
 			if _, ok := suggestions[edit]; !ok {
@@ -525,10 +553,11 @@ func (model *Model) suggestPotential(input string, exhaustive bool) map[string]*
 	// Note: these are more complex, we need to check the guesses
 	// more thoroughly, e.g. levals=[valves] in a raw sense, which
 	// is incorrect
-	for _, edit := range edits {
+	for edit := range edits {
 		if sugg, ok := model.Suggest[edit]; ok {
 			// Is this a real transpose or replace?
-			for _, pot := range sugg {
+			for _, pot2 := range sugg {
+				pot := *pot2
 				lev := Levenshtein(&input, &pot)
 				if lev <= model.Depth+1 { // The +1 doesn't seem to impact speed, but has greater coverage when the depth is not sufficient to make suggestions
 					if _, ok := suggestions[pot]; !ok {

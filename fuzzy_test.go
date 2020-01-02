@@ -345,7 +345,7 @@ func TestAutocomplete(t *testing.T) {
 	model.Train(sampleEnglish)
 	out, err := model.Autocomplete("accoun")
 	if err != nil {
-		t.Errorf("Auocomplete() returned and error: ", err)
+		t.Errorf("Auocomplete() returned and error:%v ", err)
 	}
 	expected := map[string]bool{
 		"account":    true,
@@ -375,7 +375,7 @@ func TestAutocompleteFromQueries(t *testing.T) {
 
 	out, err := model.Autocomplete("eve")
 	if err != nil {
-		t.Errorf("Auocomplete() returned and error: ", err)
+		t.Errorf("Auocomplete() returned and error: %v", err)
 	}
 	if out[0] != "everest" {
 		t.Errorf("Autocomplete failed to account for query training")
@@ -388,5 +388,61 @@ func TestAutocompleteFromQueries(t *testing.T) {
 func TestLoadOldModel(t *testing.T) {
 	if _, err := Load("data/test.dict"); err != nil {
 		t.Errorf("Couldn't load old model format: %v", err)
+	}
+}
+
+func TestEdits2(t *testing.T) {
+	word := "aruna"
+	total_set := []string{word}
+
+	var s1, s2 string
+	//for i := 0; i < len(word); i++ {
+	//	s1, s2 = word[:i], word[i+1:]
+	//	total_set = append(total_set, s1+s2)
+	//	fmt.Println(total_set)
+	//}
+	for i := range word {
+		s1, s2 = word[:i], word[i+1:]
+		total_set = append(total_set, s1+s2)
+	}
+	fmt.Println(total_set)
+
+}
+
+func TestModel_EditsMulti(t *testing.T) {
+	model := &Model{}
+	str := model.EditsMulti("aruna", 2)
+
+	fmt.Println(str)
+}
+
+func TestModel_CreateSuggestedKeys(t *testing.T) {
+	model := NewModel()
+	model.Depth = 2
+
+	model.createSuggestKeys("aruna")
+
+	fmt.Println(model.Suggest)
+}
+
+func BenchmarkModel_TrainUnique(b *testing.B) {
+	model := NewModel()
+	model.Threshold = 1
+	model.Depth = 2
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		model.TrainUnique([]SingleWord{{"aruna", 2}})
+	}
+}
+
+func BenchmarkModel_Train(b *testing.B) {
+	model := NewModel()
+	model.Threshold = 1
+	model.Depth = 2
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		model.Train([]string{"aruna"})
 	}
 }

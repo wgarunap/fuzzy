@@ -37,7 +37,16 @@ func (model *Model) convertOldFormat(filename string) error {
 
 	// Convert fields
 	model.Maxcount = oldmodel.Maxcount
-	model.Suggest = oldmodel.Suggest
+
+	for key, value := range oldmodel.Suggest {
+		for _, v := range value {
+			model.Suggest[key] = append(model.Suggest[key], &v)
+		}
+
+	}
+
+	//model.Suggest = oldmodel.Suggest
+
 	model.Depth = oldmodel.Depth
 	model.Threshold = oldmodel.Threshold
 	model.UseAutocomplete = oldmodel.UseAutocomplete
