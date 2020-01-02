@@ -125,6 +125,7 @@ func (model *Model) Init() *Model {
 	model.updateSuffixArr()
 	model.SuffDivergenceThreshold = SuffDivergenceThresholdDefault
 	model.uniqueWordIndexLatency = metrics.NoopReporter().Observer(metrics.MetricConf{})
+	model.updateSuffixArrLatency = metrics.NoopReporter().Observer(metrics.MetricConf{})
 	return model
 }
 
