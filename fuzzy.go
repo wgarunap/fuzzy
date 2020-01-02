@@ -48,16 +48,16 @@ type Counts struct {
 }
 
 type Model struct {
-	Data                    map[string]*Counts  `json:"data"`
-	Maxcount                int                 `json:"maxcount"`
-	Suggest                 map[string][]string `json:"suggest"`
-	Depth                   int                 `json:"depth"`
-	Threshold               int                 `json:"threshold"`
-	UseAutocomplete         bool                `json:"autocomplete"`
-	SuffDivergence          int                 `json:"-"`
-	SuffDivergenceThreshold int                 `json:"suff_threshold"`
-	SuffixArr               *suffixarray.Index  `json:"-"`
-	SuffixArrConcat         string              `json:"-"`
+	Data                    map[string]*Counts   `json:"data"`
+	Maxcount                int                  `json:"maxcount"`
+	Suggest                 map[string][]*string `json:"suggest"`
+	Depth                   int                  `json:"depth"`
+	Threshold               int                  `json:"threshold"`
+	UseAutocomplete         bool                 `json:"autocomplete"`
+	SuffDivergence          int                  `json:"-"`
+	SuffDivergenceThreshold int                  `json:"suff_threshold"`
+	SuffixArr               *suffixarray.Index   `json:"-"`
+	SuffixArrConcat         string               `json:"-"`
 	sync.RWMutex
 }
 
