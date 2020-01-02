@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/pickme-go/metrics/v2"
 	"index/suffixarray"
 	"io"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -48,6 +50,7 @@ type Counts struct {
 }
 
 type Model struct {
+	name                    string
 	Data                    map[string]*Counts   `json:"data"`
 	Maxcount                int                  `json:"maxcount"`
 	Suggest                 map[string][]*string `json:"suggest"`
@@ -58,6 +61,7 @@ type Model struct {
 	SuffDivergenceThreshold int                  `json:"suff_threshold"`
 	SuffixArr               *suffixarray.Index   `json:"-"`
 	SuffixArrConcat         string               `json:"-"`
+	uniqueWordIndexLatency  metrics.Observer     `json:"-"`
 	sync.RWMutex
 }
 
@@ -104,8 +108,9 @@ func (pot *Potential) String() string {
 }
 
 // Create and initialise a new model
-func NewModel() *Model {
+func NewModel(modelname string) *Model {
 	model := new(Model)
+	model.name = modelname
 	return model.Init()
 }
 
@@ -117,6 +122,7 @@ func (model *Model) Init() *Model {
 	model.UseAutocomplete = true            // Default is to include Autocomplete
 	model.updateSuffixArr()
 	model.SuffDivergenceThreshold = SuffDivergenceThresholdDefault
+	model.uniqueWordIndexLatency = metrics.NoopReporter().Observer(metrics.MetricConf{})
 	return model
 }
 
@@ -201,6 +207,16 @@ func Load(filename string) (*Model, error) {
 func (model *Model) SetDepth(val int) {
 	model.Lock()
 	model.Depth = val
+	model.Unlock()
+}
+
+func (model *Model) SetMetrics(r metrics.Reporter) {
+	model.Lock()
+	model.uniqueWordIndexLatency = r.Observer(metrics.MetricConf{
+		Path:        "word_index_latency_millisecond",
+		Labels:      []string{"name"},
+		ConstLabels: nil,
+	})
 	model.Unlock()
 }
 
@@ -323,6 +339,9 @@ func (model *Model) TrainUnique(terms []SingleWord) {
 }
 
 func (model *Model) TrainUniqueWord(term string, count int) {
+	defer func(start time.Time) {
+		model.uniqueWordIndexLatency.Observe(float64(time.Since(start).Nanoseconds()/1e3), map[string]string{"name": model.name})
+	}(time.Now())
 
 	model.Data[term] = &Counts{count, 0}
 
