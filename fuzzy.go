@@ -111,12 +111,16 @@ func (pot *Potential) String() string {
 
 // Create and initialise a new model
 func NewModel(modelname string) *Model {
-	model := *(*Model)(unsafe.Pointer(new(Model)))
+	p := unsafe.Pointer(&Model{})
+
+	model := *(*Model)(p)
 
 	//model := new(Model)
 
 	model.name = modelname
-	return model.Init()
+	model.Init()
+
+	return (*Model)(p)
 }
 
 func (model *Model) Init() *Model {
