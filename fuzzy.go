@@ -122,10 +122,10 @@ func (model *Model) Init() *Model {
 	model.Depth = SpellDepthDefault
 	model.Threshold = SpellThresholdDefault // Setting this to 1 is most accurate, but "1" is 5x more memory and 30x slower processing than "4". This is a big performance tuning knob
 	model.UseAutocomplete = true            // Default is to include Autocomplete
-	model.updateSuffixArr()
 	model.SuffDivergenceThreshold = SuffDivergenceThresholdDefault
 	model.uniqueWordIndexLatency = metrics.NoopReporter().Observer(metrics.MetricConf{})
 	model.updateSuffixArrLatency = metrics.NoopReporter().Observer(metrics.MetricConf{})
+	model.updateSuffixArr()
 	return model
 }
 
