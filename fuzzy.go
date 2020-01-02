@@ -61,7 +61,9 @@ type Model struct {
 	SuffDivergenceThreshold int                  `json:"suff_threshold"`
 	SuffixArr               *suffixarray.Index   `json:"-"`
 	SuffixArrConcat         string               `json:"-"`
-	uniqueWordIndexLatency  metrics.Observer     `json:"-"`
+	uniqueWordIndexLatency  metrics.Observer
+	updateSuffixArrLatency  metrics.Observer
+
 	sync.RWMutex
 }
 
@@ -214,6 +216,11 @@ func (model *Model) SetMetrics(r metrics.Reporter) {
 	model.Lock()
 	model.uniqueWordIndexLatency = r.Observer(metrics.MetricConf{
 		Path:        "word_index_latency_millisecond",
+		Labels:      []string{"name"},
+		ConstLabels: nil,
+	})
+	model.updateSuffixArrLatency = r.Observer(metrics.MetricConf{
+		Path:        "updateSuffixArrLatency_latency_millisecond",
 		Labels:      []string{"name"},
 		ConstLabels: nil,
 	})
@@ -657,6 +664,8 @@ func SampleEnglish() []string {
 // Takes the known dictionary listing and creates a suffix array
 // model for these terms. If a model already existed, it is discarded
 func (model *Model) updateSuffixArr() {
+	defer model.updateSuffixArrLatency.Observe(float64(time.Since(time.Now()).Nanoseconds()/1e3), map[string]string{"name": model.name})
+
 	if !model.UseAutocomplete {
 		return
 	}
