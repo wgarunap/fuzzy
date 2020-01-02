@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -63,7 +64,6 @@ type Model struct {
 	SuffixArrConcat         string               `json:"-"`
 	uniqueWordIndexLatency  metrics.Observer
 	updateSuffixArrLatency  metrics.Observer
-
 	sync.RWMutex
 }
 
@@ -111,7 +111,10 @@ func (pot *Potential) String() string {
 
 // Create and initialise a new model
 func NewModel(modelname string) *Model {
-	model := new(Model)
+	model := *(*Model)(unsafe.Pointer(new(Model)))
+
+	//model := new(Model)
+
 	model.name = modelname
 	return model.Init()
 }
