@@ -310,6 +310,19 @@ func (model *Model) TrainWord(term string) {
 	model.Unlock()
 }
 
+func (model *Model) TrainWordWithCount(term string, count int) {
+	model.Lock()
+
+	model.Data[term] = &Counts{count, 0}
+	model.Maxcount = count
+
+	// If threshold is triggered, store delete suggestion keys
+	if count >= model.Threshold {
+		model.createSuggestKeys(term)
+	}
+	model.Unlock()
+}
+
 // Train using a search query term. This builds a second popularity
 // index of terms used to search, as opposed to generally occurring
 // in corpus text
